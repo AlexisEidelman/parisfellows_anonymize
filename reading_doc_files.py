@@ -14,7 +14,7 @@ from docx import Document
 from sklearn.preprocessing import LabelEncoder
 
 
-#target_list = ['X\xe2\x80\xa6', 'Y\xe2\x80\xa6', 'Z\xe2\x80\xa6', 'X']
+
 
 stopword_fr = [word for word in stopwords.words('french')]
 
@@ -60,7 +60,14 @@ def get_target(sentence):
 ###                 GENERAL                   ###
 #################################################
 
-path_files = glob.glob('C:\git\pseudonymisation\jurinet\good\*')
+import os
+#import sys
+#sys.path.insert(0, path_jurinet)
+path_jurinet = "C:\git\pseudonymisation\jurinet"
+path_data = os.path.join(path_jurinet, 'good')
+jurinet_files = [x for x in os.listdir(path_data) if 'jurinet' in x]
+path_files = [os.path.join(path_data, f) for f in jurinet_files]
+
 doc = Document(path_files[0])
 
 documents_df = pd.DataFrame()
