@@ -115,7 +115,7 @@ for path_file in path_files:
     tagged = noms_retires(mots_init, mots_modif, verbose=False)
     
     document_temp = pd.DataFrame.from_dict({
-    'mots': mots_init,
+    'mot': mots_init,
     'tagged': tagged,    
     })
     document_temp['doc_name'] = num_file
@@ -123,12 +123,8 @@ for path_file in path_files:
     
     words_df = pd.concat([words_df, document_temp])
 
-
-
-
-print(documents_df.is_target.value_counts())
-print(words_df.groupby('doc_name')['is_target'].sum())
-
+print(words_df.groupby('doc_name')['tagged'].sum())
+print(words_df.groupby('doc_name')['tagged'].sum().value_counts())
 
 # Old
 #    tags = tagger.TagText(row.['paragraph'])
@@ -142,14 +138,16 @@ print("-"*54)
 print(" PREPROCESSING...")
 
 
+
+
+
 ## Loading annexe files (Firstaname / Names etc;..)
 # Reading French's firstnames file
 firstname_df = pd.read_csv('data/prenom_clean.csv', encoding='utf-8',
                            header=None, names = ["firstname"])
 # Use Majuscule in first carac
-firstname_df['firstname'] = firstname_df['firstname'].apply(lambda x: x.title())
+firstname_df['firstname'] = firstname_df['firstname'].str.title()
 firstname_list = firstname_df.firstname.tolist()
-
 
 # Reading foreign's firstnames file
 foreign_firstname_df =  pd.read_csv('data/foreign_fistname_clean.csv', encoding='utf-8',
@@ -161,191 +159,105 @@ name_df = pd.read_csv('data/top_8k_name.csv', encoding='utf-8')
 name_list = name_df.name.tolist()
 
 
-#################################################
-###         Simulate Name & Firstame          ###
-
-
-word_df['is_target'] = word_df['word'].apply(lambda x: 1 if x in target_dict.keys() else 0)
-# To make some difference beetwen a name is_target and other target. To delete btw
-word_df['is_name'] = 0
-word_df.loc[word_df['is_target'] == 1, 'is_name'] = 1
-
-
-## Insert random first name in place of 'X', Mr 'X...' ...
-#
-
-# /!\ Delete when true data
-def get_random_firstname():
-    """
-    Use a first random (0/1) to chose between French's firstname or foreign
-    And a random firstname in the random chosen dataset
-    """
-    # first random to chose the dataset
-    first_random = random.randint(0,1)
-    # French
-    if first_random == 0:
-        random_idx = random.randint(0, 2046) # len de firstname_list
-        return firstname_list[random_idx]
-    # foreign
-    else:
-        random_idx = random.randint(0, 36114) # len de firstname_list
-        return foreign_firstname_list[random_idx]
-
-def get_random_name():
-    """
-    Return a random name en CAPS
-    """
-    random_idx = random.randint(0, 7999) # len de name_list
-    return name_list[random_idx]
-
-def insert_row(x, idx):
-    """
-    Return a Dataframe with :
-    - Random Firstname (French or Foreigner)
-    - is_target = 1
-    -
-    """
-    line = {'word' : get_random_firstname() ,
-            'doc_name' :  x['doc_name'],
-            'paragraph_nb' :  x['paragraph_nb'],
-            'is_target' :  1,
-            'is_firstname' :  0,
-            'word_shift_1b' :  '',
-            'is_firstname_1b' :  '',
-            'is_firstname_1b_shift' :  '',
-            'add_row' : 1,#
-            'is_target_1b' : ''}
-    return pd.DataFrame(line, index=[idx])
-
-
-# Replace X.. Y by Radnom Name
-word_df.loc[word_df['is_target'] ==1, 'word'] = word_df['word'].apply(lambda x: get_random_name())
 # Check if word is Firstname then is_target :
-word_df['is_firstname'] = word_df['word'].apply(lambda x: 1 if x.title() in firstname_list else 0)
-word_df['word_shift_1b'] = word_df.groupby(['doc_name'])['word'].apply(lambda x: x.shift(1))
-word_df['is_firstname_1b'] = 0
-word_df.loc[(word_df['is_target'] == 1) & (word_df['word_shift_1b'].str.title().isin(firstname_list)), 'is_firstname_1b'] = 1
-word_df['is_firstname_1b_shift'] = word_df['is_firstname_1b'].shift(-1)
-word_df.loc[(word_df['is_firstname_1b_shift'] == 1), 'is_target'] = 1
+words_df['is_firstname'] = False
+#words_df['is_firstname'] = words_df['mot'].str.title().isin(firstname_list)
 
 
-
-# Random Insert Random Firstname before Name if no firstname detect
-print("  INSERT ROWS FOR SIMULATE FIRSTNAME")
-
-word_df['add_row'] = 0
-word_df['is_target_1b'] = word_df['is_target'].shift(-1)
-
-word_df['is_firstname_1a'] = word_df['is_firstname'].shift(-1)
-
-i = 0
-for idx, row in word_df[(word_df.is_target_1b == 1) & (word_df.is_firstname == 0)
-                        & (word_df.is_firstname_1a == 0)].iterrows():
-    # Add some random (sometime Firstane sometime no...)
-    if random.randint(0, 1) == 1:
-        print(str(idx+i))
-        # Si la row suivante est target et que ce n'est pas un Firstname
-        # et que la row actuelle n'est pas un Firstname ==> Add Random Firstname
-        line = insert_row(row, idx)
-        word_df = pd.concat([word_df.ix[:idx + i ], line, word_df.ix[idx+1 + i:]]).reset_index(drop=True)
-        i+=1
-    
-
-#Delete old features
-word_df = word_df.drop(['is_firstname_1b', 'is_firstname_1b_shift', 'is_target_1b', 
-                        'word_shift_1b', 'is_name', 'is_firstname_1a', 'add_row'], axis=1)
-
-word_df = word_df[word_df.word != u'\u2026'] # To clean anonymasation from dataset and bad ML
-word_df = word_df.reset_index(drop=True)
+for k in range(-4, 5):
+    if k  != 0:
+        words_df[['mot ' + str(k), 'firstname ' + str(k)]] = \
+            words_df.groupby(['doc_name'])[['mot', 'is_firstname']].apply(lambda x: x.shift(k))
+# TODO: peut-être une petite optimisation pour le firstname on peut aller chercher la valuer 
 
 
 ##################################################
 ####             Features Engi                 ###
 
 # to have granularite
-word_df['temp_count'] = 1
+words_df['temp_count'] = 1
 
 # Cumulative sum of word by paragraph
-word_df['paragraph_cum_word' ] = word_df.groupby(['doc_name', 'paragraph_nb'])['temp_count'].cumsum()
+words_df['paragraph_cum_word' ] = words_df.groupby(['doc_name', 'paragraph_nb'])['temp_count'].cumsum()
 
 # Cumulative sum of word by senstence end by ";" or "."
-word_df['temp_count'] = 1
+words_df['temp_count'] = 1
 ## Create a bool a each end of sentence
-word_df["end_point"] = word_df.word.apply(lambda x: 1 if x in [";", "."] else 0)
+words_df["end_point"] = words_df.word.apply(lambda x: 1 if x in [";", "."] else 0)
 
-word_df['end_point_cum' ] = word_df.groupby(['doc_name'])['end_point'].cumsum()
-word_df['end_point_cum_word' ] = word_df.groupby(['doc_name', 'end_point_cum'])['temp_count'].cumsum()
-#word_df = word_df.drop(['temp_count', 'end_point', 'end_point_cum'], axis=1)
+words_df['end_point_cum' ] = words_df.groupby(['doc_name'])['end_point'].cumsum()
+words_df['end_point_cum_word' ] = words_df.groupby(['doc_name', 'end_point_cum'])['temp_count'].cumsum()
+#words_df = words_df.drop(['temp_count', 'end_point', 'end_point_cum'], axis=1)
 
 # Cumulative sum of word by senstence end by ","
 ## Create a bool a each end of sentence
-word_df["end_comma"] = word_df.word.apply(lambda x: 1 if x in [","] else 0)
+words_df["end_comma"] = words_df.word.apply(lambda x: 1 if x in [","] else 0)
 ## If end of sentence "." & ";" then end of comma to
-word_df.loc[word_df['end_point'] == 1, "end_comma"] = 1
+words_df.loc[words_df['end_point'] == 1, "end_comma"] = 1
 
-word_df['end_comma_cum' ] = word_df.groupby(['doc_name'])['end_comma'].cumsum()
-word_df['end_comma_cum_word' ] = word_df.groupby(['doc_name', 'end_comma_cum'])['temp_count'].cumsum()
+words_df['end_comma_cum' ] = words_df.groupby(['doc_name'])['end_comma'].cumsum()
+words_df['end_comma_cum_word' ] = words_df.groupby(['doc_name', 'end_comma_cum'])['temp_count'].cumsum()
 
 # Del temp preprocessing features
-word_df = word_df.drop(['temp_count', 'end_comma', 'end_comma_cum',
+words_df = words_df.drop(['temp_count', 'end_comma', 'end_comma_cum',
                        'end_point', 'end_point_cum'], axis=1)
 
 
 
-word_df['is_stopword'] = word_df['word'].apply(lambda x: 1 if x.lower() in stopword_fr else 0)
-word_df['is_first_char_upper'] = word_df['word'].apply(lambda x: 1 if x[0].isupper() else 0)
-word_df['is_upper'] = word_df['word'].apply(lambda x: 1 if x.isupper() else 0)
-word_df['is_firstname'] = word_df['word'].apply(lambda x: 1 if x in firstname_list else 0)
-word_df['len_word'] = word_df['word'].apply(lambda x: len(x))  # len
+words_df['is_stopword'] = words_df['word'].apply(lambda x: 1 if x.lower() in stopword_fr else 0)
+words_df['is_first_char_upper'] = words_df['word'].apply(lambda x: 1 if x[0].isupper() else 0)
+words_df['is_upper'] = words_df['word'].apply(lambda x: 1 if x.isupper() else 0)
+words_df['is_firstname'] = words_df['word'].apply(lambda x: 1 if x in firstname_list else 0)
+words_df['len_word'] = words_df['word'].apply(lambda x: len(x))  # len
 
 # Checking if our random firstname is in french firstname to benchmark
-word_df['firstname_is_french'] = 0
-word_df.loc[(word_df['is_target'] ==1) & (word_df['word'].isin(firstname_list)), 'firstname_is_french'] = 1
+words_df['firstname_is_french'] = 0
+words_df.loc[(words_df['is_target'] ==1) & (words_df['word'].isin(firstname_list)), 'firstname_is_french'] = 1
 
 # Add some Random on is_firstname (0/1)
-word_df.loc[(word_df['is_target'] ==1) & (word_df.is_firstname == 1), 'is_firstname'] = random.randint(0, 1)    #1 is To strong rule so random
+words_df.loc[(words_df['is_target'] ==1) & (words_df.is_firstname == 1), 'is_firstname'] = random.randint(0, 1)    #1 is To strong rule so random
 
 #Check is there is a "Mr", "M" before...
-word_df['word_shift_1b'] = word_df.groupby(['doc_name'])['word'].apply(lambda x: x.shift(1))
-word_df['is_mister_word'] = 0
-word_df.loc[(word_df['is_target'] ==1) & (word_df['word_shift_1b'].isin(mister_list)), 'is_mister_word'] = 1
-word_df = word_df.drop('word_shift_1b', axis=1)
+words_df['word_shift_1b'] = words_df.groupby(['doc_name'])['word'].apply(lambda x: x.shift(1))
+words_df['is_mister_word'] = 0
+words_df.loc[(words_df['is_target'] ==1) & (words_df['word_shift_1b'].isin(mister_list)), 'is_mister_word'] = 1
+words_df = words_df.drop('word_shift_1b', axis=1)
 
 ## IF previous X.. X Z etc.. is a firstname then is target.
-#word_df['is_firstname_1b'] = 0
+#words_df['is_firstname_1b'] = 0
 ## For french firstname
-#word_df.loc[(word_df['is_target'] ==1) & (word_df['word_shift_1b'].isin(firstname_list)), 'is_firstname_1b'] = 1
+#words_df.loc[(words_df['is_target'] ==1) & (words_df['word_shift_1b'].isin(firstname_list)), 'is_firstname_1b'] = 1
 ## For foreigners firstname
-#word_df.loc[(word_df['is_target'] ==1) & (word_df['word_shift_1b'].isin(foreign_firstname_list)), 'is_firstname_1b'] = 1
-#word_df['is_firstname_1b_shift'] = word_df['is_firstname_1b'].shift(-1)
-#word_df.loc[(word_df['is_firstname_1b_shift'] ==1), 'is_target'] = 1
-#word_df = word_df.drop(['is_firstname_1b_shift', 'is_firstname_1b_shift'], axis=1)
+#words_df.loc[(words_df['is_target'] ==1) & (words_df['word_shift_1b'].isin(foreign_firstname_list)), 'is_firstname_1b'] = 1
+#words_df['is_firstname_1b_shift'] = words_df['is_firstname_1b'].shift(-1)
+#words_df.loc[(words_df['is_firstname_1b_shift'] ==1), 'is_target'] = 1
+#words_df = words_df.drop(['is_firstname_1b_shift', 'is_firstname_1b_shift'], axis=1)
 
 
 ## Label encoding word
 lbl = LabelEncoder()
-word_df['word_encoded'] = lbl.fit_transform(list(word_df['word'].values))
+words_df['word_encoded'] = lbl.fit_transform(list(words_df['word'].values))
 
 
 # Shift words encoded
 ## One word before
-word_df['word_encoded_shift_1b'] = word_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(1))
+words_df['word_encoded_shift_1b'] = words_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(1))
 
 ## Two words before
-word_df['word_encoded_shift_2b'] = word_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(2))
+words_df['word_encoded_shift_2b'] = words_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(2))
 
 ## One word after
-word_df['word_encoded_shift_1a'] = word_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(-1))
+words_df['word_encoded_shift_1a'] = words_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(-1))
 
 ## Two words after
-word_df['word_encoded_shift_2a'] = word_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(-2))
+words_df['word_encoded_shift_2a'] = words_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(-2))
 
 
 # Fillna Nan word shift
-word_df = word_df.fillna(-1)
+words_df = words_df.fillna(-1)
 
 #print " EXPORT..."
-word_df.to_csv('data/data.csv', encoding='utf-8', index=False)
+words_df.to_csv('data/data.csv', encoding='utf-8', index=False)
 
 
 # OLD
