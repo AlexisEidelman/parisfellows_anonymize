@@ -60,7 +60,7 @@ def get_target(sentence):
 ###                 GENERAL                   ###
 #################################################
 
-path_files = glob.glob('data/jugements CRC LÇgifrance/*')
+path_files = glob.glob('C:\git\pseudonymisation\jurinet\good\*')
 doc = Document(path_files[0])
 
 documents_df = pd.DataFrame()
@@ -68,7 +68,7 @@ document_temp = pd.DataFrame()
 
 
 for path_file in path_files:
-    print "Loading file : " + path_file.split('/')[-1]
+    print ("Loading file : " + path_file.split('/')[-1])
     if path_file.split('.')[-1] == "docx":
         doc = Document(path_file)
         paragraphs = doc.paragraphs
@@ -80,7 +80,7 @@ for path_file in path_files:
         document_temp = pd.DataFrame(my_document)
         documents_df = pd.concat([documents_df, document_temp])
     else:
-        print "Error - Not a docx file : " + path_file.split('/')[-1]
+        print ("Error - Not a docx file : " + path_file.split('/')[-1])
 
 #documents_df['paragraph_no_punct'] = documents_df['paragraph'].apply(lambda x: remove_ponctuation(x))
 documents_df.reset_index(inplace=True)
@@ -88,8 +88,8 @@ documents_df['is_target'] = documents_df['paragraph'].apply(lambda x: get_target
 documents_df['is_target'].fillna(0, inplace=True)
 
 
-print documents_df.is_target.value_counts()
-print documents_df.groupby('doc_name')['is_target'].sum()
+print(documents_df.is_target.value_counts())
+print(documents_df.groupby('doc_name')['is_target'].sum())
 
 
 # Old
@@ -100,8 +100,8 @@ print documents_df.groupby('doc_name')['is_target'].sum()
 #                          'type' : w[1],
 #                            'lemma' : w[2]})
 
-print "-"*54
-print " PREPROCESSING..."
+print("-"*54)
+print(" PREPROCESSING...")
 
 word_list = []
 context_word =[]
@@ -212,7 +212,7 @@ word_df.loc[(word_df['is_firstname_1b_shift'] == 1), 'is_target'] = 1
 
 
 # Random Insert Random Firstname before Name if no firstname detect
-print "  INSERT ROWS FOR SIMULATE FIRSTNAME"
+print("  INSERT ROWS FOR SIMULATE FIRSTNAME")
 
 word_df['add_row'] = 0
 word_df['is_target_1b'] = word_df['is_target'].shift(-1)
@@ -224,7 +224,7 @@ for idx, row in word_df[(word_df.is_target_1b == 1) & (word_df.is_firstname == 0
                         & (word_df.is_firstname_1a == 0)].iterrows():
     # Add some random (sometime Firstane sometime no...)
     if random.randint(0, 1) == 1:
-        print str(idx+i)
+        print(str(idx+i))
         # Si la row suivante est target et que ce n'est pas un Firstname
         # et que la row actuelle n'est pas un Firstname ==> Add Random Firstname
         line = insert_row(row, idx)
