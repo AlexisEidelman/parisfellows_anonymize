@@ -45,7 +45,8 @@ def get_target(sentence):
     for i in range(len(sentence.split(' '))):
         w = sentence.split(' ')[i].replace(',', '').replace('.', '')
         if w in target_dict.keys():
-            return 1
+            return True
+    return False
 
 #def remove_ponctuation(sentence):
 #    sentence_with_no_punct = ""
@@ -68,31 +69,41 @@ path_data = os.path.join(path_jurinet, 'good')
 jurinet_files = [x for x in os.listdir(path_data) if 'jurinet' in x]
 path_files = [os.path.join(path_data, f) for f in jurinet_files]
 
-doc = Document(path_files[0])
 
-documents_df = pd.DataFrame()
+
+#    with open(dila_file, 'r') as dila:
+#        dila_text = dila.read()
+#
+#    dila_text = re.sub(r'([A-Z])\.\.\.', r'\1zzz', dila_text)
+##    text1bis = text1.replace('...', 'zzz')
+#    dila_text = re.sub(r'zzz-\w', r'', dila_text)
+#    mots_dila = word_tokenize(dila_text, language='french')
+#    mots_juri = word_tokenize(jurinet_text, language='french')
+#
+#    for k in range(len(mots_dila)):
+#        if mots_dila[k] != mots_juri[k]:
+#            print(mots_dila[k], mots_juri[k])
+
+documents_df = pd.DataFrame(columns=['paragraph'])
+documents_df.index.name = 'doc_name'
 document_temp = pd.DataFrame()
 
 
 for path_file in path_files:
-    print ("Loading file : " + path_file.split('/')[-1])
-    if path_file.split('.')[-1] == "docx":
-        doc = Document(path_file)
-        paragraphs = doc.paragraphs
-        my_document = []
-        for paragraph in paragraphs:
-            my_document.append({'doc_name' : path_file.split('/')[-1],
-                                'paragraph' : paragraph.text})
+    num_file = os.path.basename(path_file)[:-4].split('_')[0]
+    print ("Loading file : " + os.path.basename(path_file))
+    with open(path_file, 'r') as jurinet:
+        jurinet_text = jurinet.read()
+    with open(path_file.replace('_jurinet', '_dila'), 'r') as dila:
+        dila_text = dila.read()
+    documents_df.loc[num_file] = dila_text
 
-        document_temp = pd.DataFrame(my_document)
-        documents_df = pd.concat([documents_df, document_temp])
-    else:
-        print ("Error - Not a docx file : " + path_file.split('/')[-1])
+xxxx
 
 #documents_df['paragraph_no_punct'] = documents_df['paragraph'].apply(lambda x: remove_ponctuation(x))
 documents_df.reset_index(inplace=True)
 documents_df['is_target'] = documents_df['paragraph'].apply(lambda x: get_target(x))
-documents_df['is_target'].fillna(0, inplace=True)
+documents_df['is_target'].fillna(False, inplace=True)
 
 
 print(documents_df.is_target.value_counts())
