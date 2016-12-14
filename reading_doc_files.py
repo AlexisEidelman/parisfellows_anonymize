@@ -171,9 +171,12 @@ words_df['len_word'] = words_df['mot'].str.len()
 words_df['is_firstname'] = False
 words_df['is_mister_word'] = words_df['mot'].isin(mister_list)
 #words_df['is_firstname'] = words_df['mot'].str.title().isin(firstname_list)
+## Label encoding word
+lbl = LabelEncoder()
+words_df['word_encoded'] = lbl.fit_transform(list(words_df['mot'].values))
 
 caracteristique_mot = ['mot', 'is_firstname', 'is_stopword', 'is_first_char_upper',
-                       'is_upper', 'len_word', 'is_mister_word']
+                       'is_upper', 'len_word', 'is_mister_word', 'word_encoded']
 for k in range(-4, 5):
     caracteristique_mot_k = [nom + ' ' + str(k) for nom in caracteristique_mot]
     if k  != 0:
@@ -219,40 +222,10 @@ words_df['end_comma_cum_word_reverse' ] = words_df['end_comma_size'] - words_df[
 words_df = words_df.drop(['temp_count', 'end_comma', 'end_comma_cum',
                        'end_point', 'end_point_cum'], axis=1)
 
-# TODO: entre guillemet
-
-
-## Label encoding word
-lbl = LabelEncoder()
-words_df['word_encoded'] = lbl.fit_transform(list(words_df['mot'].values))
-
-
-# Shift words encoded
-## One word before
-words_df['word_encoded_shift_1b'] = words_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(1))
-
-## Two words before
-words_df['word_encoded_shift_2b'] = words_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(2))
-
-## One word after
-words_df['word_encoded_shift_1a'] = words_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(-1))
-
-## Two words after
-words_df['word_encoded_shift_2a'] = words_df.groupby(['doc_name'])['word_encoded'].apply(lambda x: x.shift(-2))
-
+# TODO: entre is_entre_guillemet
 
 # Fillna Nan word shift
 words_df = words_df.fillna(-1)
 
 #print " EXPORT..."
 words_df.to_csv('data/data.csv', encoding='utf-8', index=False)
-
-
-# OLD
-#docText = '\n\n'.join([
-#    paragraph.text.encode('utf-8') for paragraph in paragraphs
-#])
-
-
-# tagger = treetaggerwrapper.TreeTagger(TAGLANG='fr', TAGDIR='/Users/babou/Desktop/NLP',
-#  TAGINENC='utf-8',TAGOUTENC='utf-8')
