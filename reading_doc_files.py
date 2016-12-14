@@ -130,7 +130,7 @@ print(words_df.groupby('doc_name')['tagged'].sum().value_counts())
 #    tags = tagger.TagText(row.['paragraph'])
 #    tags2 = treetaggerwrapper.make_tags(tags)
 #    for w in tags2:
-#        word_list.append({'word' : w[0],
+#        word_list.append({'mot' : w[0],
 #                          'type' : w[1],
 #                            'lemma' : w[2]})
 
@@ -159,84 +159,72 @@ name_df = pd.read_csv('data/top_8k_name.csv', encoding='utf-8')
 name_list = name_df.name.tolist()
 
 
+##################################################
+####             Caractéristique du mot        ###
+
 # Check if word is Firstname then is_target :
+
+words_df['is_stopword'] = words_df['mot'].str.lower().isin(stopword_fr)
+words_df['is_first_char_upper'] = words_df['mot'].str[0].str.isupper()
+words_df['is_upper'] = words_df['mot'].str.isupper()
+words_df['len_word'] = words_df['mot'].str.len()
 words_df['is_firstname'] = False
+words_df['is_mister_word'] = words_df['mot'].isin(mister_list)
 #words_df['is_firstname'] = words_df['mot'].str.title().isin(firstname_list)
 
-
+caracteristique_mot = ['mot', 'is_firstname', 'is_stopword', 'is_first_char_upper',
+                       'is_upper', 'len_word', 'is_mister_word']
 for k in range(-4, 5):
+    caracteristique_mot_k = [nom + ' ' + str(k) for nom in caracteristique_mot]
     if k  != 0:
-        words_df[['mot ' + str(k), 'firstname ' + str(k)]] = \
-            words_df.groupby(['doc_name'])[['mot', 'is_firstname']].apply(lambda x: x.shift(k))
+        words_df[caracteristique_mot_k] = \
+            words_df.groupby(['doc_name'])[caracteristique_mot].apply(lambda x: x.shift(k))
 # TODO: peut-être une petite optimisation pour le firstname on peut aller chercher la valuer 
 
+# nombre occurence dans le doc
+count_mot = words_df.groupby(['doc_name', 'mot']).size().to_frame('nb_mot').reset_index()
+words_df = words_df.merge(count_mot, on = ['doc_name', 'mot'])
 
-##################################################
-####             Features Engi                 ###
+
+
+##########################################################
+####             Caractéristique de la postiion        ###
 
 # to have granularite
 words_df['temp_count'] = 1
-
 # Cumulative sum of word by paragraph
 words_df['paragraph_cum_word' ] = words_df.groupby(['doc_name', 'paragraph_nb'])['temp_count'].cumsum()
-
-# Cumulative sum of word by senstence end by ";" or "."
-words_df['temp_count'] = 1
+# rank since last ";" or "."
 ## Create a bool a each end of sentence
-words_df["end_point"] = words_df.word.apply(lambda x: 1 if x in [";", "."] else 0)
+words_df["end_point"] = words_df['mot'].isin([";", "."])
+#end_point = words_df['mot'].isin([";", "."])
+# words_df['end_point'] = words_df['rank_word'][end_point]
 
+words_df['temp_count' ] = 1
 words_df['end_point_cum' ] = words_df.groupby(['doc_name'])['end_point'].cumsum()
-words_df['end_point_cum_word' ] = words_df.groupby(['doc_name', 'end_point_cum'])['temp_count'].cumsum()
+words_df['end_point_size'] = words_df.groupby(['doc_name', 'end_point_cum'])['temp_count'].transform(sum)
+words_df['end_point_cum_word'] = words_df.groupby(['doc_name', 'end_point_cum'])['temp_count'].cumsum()
+words_df['end_point_cum_word_reverse'] = words_df['end_point_size'] - words_df['end_point_cum_word']
 #words_df = words_df.drop(['temp_count', 'end_point', 'end_point_cum'], axis=1)
 
 # Cumulative sum of word by senstence end by ","
 ## Create a bool a each end of sentence
-words_df["end_comma"] = words_df.word.apply(lambda x: 1 if x in [","] else 0)
-## If end of sentence "." & ";" then end of comma to
-words_df.loc[words_df['end_point'] == 1, "end_comma"] = 1
-
+words_df["end_comma"] = words_df['mot'].isin([",",";", "."])
 words_df['end_comma_cum' ] = words_df.groupby(['doc_name'])['end_comma'].cumsum()
+words_df['end_comma_size'] = words_df.groupby(['doc_name', 'end_comma_cum'])['temp_count'].transform(sum)
 words_df['end_comma_cum_word' ] = words_df.groupby(['doc_name', 'end_comma_cum'])['temp_count'].cumsum()
+words_df['end_comma_cum_word_reverse' ] = words_df['end_comma_size'] - words_df['end_comma_cum_word']
 
 # Del temp preprocessing features
 words_df = words_df.drop(['temp_count', 'end_comma', 'end_comma_cum',
                        'end_point', 'end_point_cum'], axis=1)
 
-
-
-words_df['is_stopword'] = words_df['word'].apply(lambda x: 1 if x.lower() in stopword_fr else 0)
-words_df['is_first_char_upper'] = words_df['word'].apply(lambda x: 1 if x[0].isupper() else 0)
-words_df['is_upper'] = words_df['word'].apply(lambda x: 1 if x.isupper() else 0)
-words_df['is_firstname'] = words_df['word'].apply(lambda x: 1 if x in firstname_list else 0)
-words_df['len_word'] = words_df['word'].apply(lambda x: len(x))  # len
-
-# Checking if our random firstname is in french firstname to benchmark
-words_df['firstname_is_french'] = 0
-words_df.loc[(words_df['is_target'] ==1) & (words_df['word'].isin(firstname_list)), 'firstname_is_french'] = 1
-
-# Add some Random on is_firstname (0/1)
-words_df.loc[(words_df['is_target'] ==1) & (words_df.is_firstname == 1), 'is_firstname'] = random.randint(0, 1)    #1 is To strong rule so random
-
-#Check is there is a "Mr", "M" before...
-words_df['word_shift_1b'] = words_df.groupby(['doc_name'])['word'].apply(lambda x: x.shift(1))
-words_df['is_mister_word'] = 0
-words_df.loc[(words_df['is_target'] ==1) & (words_df['word_shift_1b'].isin(mister_list)), 'is_mister_word'] = 1
-words_df = words_df.drop('word_shift_1b', axis=1)
-
-## IF previous X.. X Z etc.. is a firstname then is target.
-#words_df['is_firstname_1b'] = 0
-## For french firstname
-#words_df.loc[(words_df['is_target'] ==1) & (words_df['word_shift_1b'].isin(firstname_list)), 'is_firstname_1b'] = 1
-## For foreigners firstname
-#words_df.loc[(words_df['is_target'] ==1) & (words_df['word_shift_1b'].isin(foreign_firstname_list)), 'is_firstname_1b'] = 1
-#words_df['is_firstname_1b_shift'] = words_df['is_firstname_1b'].shift(-1)
-#words_df.loc[(words_df['is_firstname_1b_shift'] ==1), 'is_target'] = 1
-#words_df = words_df.drop(['is_firstname_1b_shift', 'is_firstname_1b_shift'], axis=1)
+# TODO: entre guillemet
 
 
 ## Label encoding word
 lbl = LabelEncoder()
-words_df['word_encoded'] = lbl.fit_transform(list(words_df['word'].values))
+words_df['word_encoded'] = lbl.fit_transform(list(words_df['mot'].values))
 
 
 # Shift words encoded

@@ -95,3 +95,22 @@ words_df = words_df.drop(['is_firstname_1b', 'is_firstname_1b_shift', 'is_target
 
 words_df = words_df[words_df.word != u'\u2026'] # To clean anonymasation from dataset and bad ML
 words_df = words_df.reset_index(drop=True)
+
+# Checking if our random firstname is in french firstname to benchmark
+words_df['firstname_is_french'] = 0
+words_df.loc[(words_df['is_target'] ==1) & (words_df['mot'].isin(firstname_list)), 'firstname_is_french'] = 1
+
+# Add some Random on is_firstname (0/1)
+words_df.loc[(words_df['is_target'] ==1) & (words_df.is_firstname == 1), 'is_firstname'] = random.randint(0, 1)    #1 is To strong rule so random
+
+
+
+## IF previous X.. X Z etc.. is a firstname then is target.
+#words_df['is_firstname_1b'] = 0
+## For french firstname
+#words_df.loc[(words_df['is_target'] ==1) & (words_df['word_shift_1b'].isin(firstname_list)), 'is_firstname_1b'] = 1
+## For foreigners firstname
+#words_df.loc[(words_df['is_target'] ==1) & (words_df['word_shift_1b'].isin(foreign_firstname_list)), 'is_firstname_1b'] = 1
+#words_df['is_firstname_1b_shift'] = words_df['is_firstname_1b'].shift(-1)
+#words_df.loc[(words_df['is_firstname_1b_shift'] ==1), 'is_target'] = 1
+#words_df = words_df.drop(['is_firstname_1b_shift', 'is_firstname_1b_shift'], axis=1)
