@@ -5,12 +5,13 @@ Created on Mon Jul 18 12:24:13 2016
 @author: babou
 """
 import pandas as pd
-import glob
+import re
 import nltk
 import random
 
 from nltk.corpus import stopwords
-from docx import Document
+from nltk.tokenize import word_tokenize
+
 from sklearn.preprocessing import LabelEncoder
 
 
@@ -39,7 +40,19 @@ mister_list = [u'M', u'M.', u'Madame', u'Mme', u'Monsieur', u'Dr', u'Monsieur', 
 #        w = sentence.split(' ')[i].replace(',', '').replace('.', '')
 #        if w in target_list:
 #            return target_dict.keys.index(w)
-
+def noms_retires(mots_init, mots_modif, verbose=False):
+    ''' travaille au niveau mot via word_tokenize 
+        retoure une liste de booléens de la taille du text_init en mots
+        La valeur correpondant u k-ième mot vaut True ssi le mot est différent
+        dans text_modifie
+    '''
+    pseudonym = [False]*len(mots_init)
+    for k in range(len(mots_init)):
+        if mots_modif[k] != mots_init[k]:
+            if verbose:
+                print(mots_modif[k], mots_init[k])
+            pseudonym[k] = True
+    return pseudonym
 
 def get_target(sentence):
     for i in range(len(sentence.split(' '))):
@@ -62,13 +75,10 @@ def get_target(sentence):
 #################################################
 
 import os
-#import sys
-#sys.path.insert(0, path_jurinet)
 path_jurinet = "C:\git\pseudonymisation\jurinet"
 path_data = os.path.join(path_jurinet, 'good')
 jurinet_files = [x for x in os.listdir(path_data) if 'jurinet' in x]
 path_files = [os.path.join(path_data, f) for f in jurinet_files]
-
 
 
 #    with open(dila_file, 'r') as dila:
@@ -84,30 +94,40 @@ path_files = [os.path.join(path_data, f) for f in jurinet_files]
 #        if mots_dila[k] != mots_juri[k]:
 #            print(mots_dila[k], mots_juri[k])
 
-documents_df = pd.DataFrame(columns=['paragraph'])
-documents_df.index.name = 'doc_name'
+words_df = pd.DataFrame()
 document_temp = pd.DataFrame()
 
 
 for path_file in path_files:
     num_file = os.path.basename(path_file)[:-4].split('_')[0]
     print ("Loading file : " + os.path.basename(path_file))
+    
     with open(path_file, 'r') as jurinet:
         jurinet_text = jurinet.read()
     with open(path_file.replace('_jurinet', '_dila'), 'r') as dila:
         dila_text = dila.read()
-    documents_df.loc[num_file] = dila_text
+        
+    mots_init = word_tokenize(jurinet_text, language='french')
+    text_modifie = re.sub(r'([A-Z])\.\.\.', r'\1zzz', dila_text)
+    text_modifie = re.sub(r'zzz-\w', r'', text_modifie)
+    mots_modif = word_tokenize(text_modifie, language='french')
+    
+    tagged = noms_retires(mots_init, mots_modif, verbose=False)
+    
+    document_temp = pd.DataFrame.from_dict({
+    'mots': mots_init,
+    'tagged': tagged,    
+    })
+    document_temp['doc_name'] = num_file
+    document_temp['rank_word'] = range(len(document_temp))
+    
+    words_df = pd.concat([words_df, document_temp])
 
-xxxx
 
-#documents_df['paragraph_no_punct'] = documents_df['paragraph'].apply(lambda x: remove_ponctuation(x))
-documents_df.reset_index(inplace=True)
-documents_df['is_target'] = documents_df['paragraph'].apply(lambda x: get_target(x))
-documents_df['is_target'].fillna(False, inplace=True)
 
 
 print(documents_df.is_target.value_counts())
-print(documents_df.groupby('doc_name')['is_target'].sum())
+print(words_df.groupby('doc_name')['is_target'].sum())
 
 
 # Old
@@ -120,25 +140,6 @@ print(documents_df.groupby('doc_name')['is_target'].sum())
 
 print("-"*54)
 print(" PREPROCESSING...")
-
-word_list = []
-context_word =[]
-for idx , row in documents_df.T.iteritems():
-    tokenized = nltk.word_tokenize(row['paragraph'])
-    word_list.extend(tokenized)
-    # Some context paragraph / doc
-    for len_token in tokenized:
-        context_word.append({'doc_name' : row['doc_name'],
-                             'paragraph_nb' : row['index']})
-
-# My bad of word
-word_df = pd.DataFrame(word_list, columns=['word'])
-
-# My context
-context_df = pd.DataFrame(context_word)
-
-# Merging context & bad of word
-word_df = pd.concat([word_df, context_df], axis=1)
 
 
 ## Loading annexe files (Firstaname / Names etc;..)
