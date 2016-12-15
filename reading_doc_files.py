@@ -176,8 +176,8 @@ def caracterisqute_du_mot(words_df,
     words_df['is_first_char_upper'] = words_df['mot'].str[0].str.isupper()
     words_df['is_upper'] = words_df['mot'].str.isupper()
     words_df['len_word'] = words_df['mot'].str.len()
-    words_df['is_firstname'] = words_df['mot'].isin(firstname_list)
-    words_df['is_foreign_firstname'] = words_df['mot'].isin(foreign_firstname_list)
+    words_df['is_firstname'] = words_df['mot'].isin(foreign_firstname_list)
+    words_df['is_french_firstname'] = words_df['mot'].isin(firstname_list)
     words_df['is_mister_word'] = words_df['mot'].isin(mister_list)
     # id encoding usefull ? 
     lbl = LabelEncoder()
@@ -185,6 +185,8 @@ def caracterisqute_du_mot(words_df,
     
     stemmer = SnowballStemmer("french")
     words_df['stem'] = words_df['mot'].apply(stemmer.stem)
+    lbl = LabelEncoder()
+    words_df['stem_encoded'] = lbl.fit_transform(list(words_df['stem'].values))
     return words_df
 
 
@@ -206,9 +208,9 @@ def shift_words_data(words_df,
                 words_df.groupby(['doc_name'])[liste_caracteristiques].apply(lambda x: x.shift(k))
     return words_df
 
-caracteristiques_mot = ['mot', 'is_firstname', 'is_stopword', 'is_first_char_upper',
+caracteristiques_mot = ['mot', 'is_stopword', 'is_first_char_upper',
                        'is_upper', 'len_word', 'is_mister_word', 'word_encoded',
-                       'is_foreign_firstname',
+                       'is_firstname','is_french_firstname',
                        'nb_mot']
 
 words_df = shift_words_data(words_df, -4, 5, caracteristiques_mot)
