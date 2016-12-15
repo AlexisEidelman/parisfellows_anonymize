@@ -143,19 +143,19 @@ print(" PREPROCESSING...")
 
 ## Loading annexe files (Firstaname / Names etc;..)
 # Reading French's firstnames file
-firstname_df = pd.read_csv('data/prenom_clean.csv', encoding='utf-8',
+firstname_df = pd.read_csv('other/data/prenom_clean.csv', encoding='utf-8',
                            header=None, names = ["firstname"])
 # Use Majuscule in first carac
 firstname_df['firstname'] = firstname_df['firstname'].str.title()
 firstname_list = firstname_df.firstname.tolist()
 
 # Reading foreign's firstnames file
-foreign_firstname_df =  pd.read_csv('data/foreign_fistname_clean.csv', encoding='utf-8',
+foreign_firstname_df =  pd.read_csv('other/data/foreign_fistname_clean.csv', encoding='utf-8',
                              header=None, names = ["firstname"])
 foreign_firstname_list = foreign_firstname_df.firstname.tolist()
 
 # Name list
-name_df = pd.read_csv('data/top_8k_name.csv', encoding='utf-8')
+name_df = pd.read_csv('other/data/top_8k_name.csv', encoding='utf-8')
 name_list = name_df.name.tolist()
 
 
@@ -168,7 +168,8 @@ words_df['is_stopword'] = words_df['mot'].str.lower().isin(stopword_fr)
 words_df['is_first_char_upper'] = words_df['mot'].str[0].str.isupper()
 words_df['is_upper'] = words_df['mot'].str.isupper()
 words_df['len_word'] = words_df['mot'].str.len()
-words_df['is_firstname'] = False
+words_df['is_firstname'] = words_df['mot'].isin(firstname_list)
+words_df['is_foreign_firstname'] = words_df['mot'].isin(foreign_firstname_list)
 words_df['is_mister_word'] = words_df['mot'].isin(mister_list)
 #words_df['is_firstname'] = words_df['mot'].str.title().isin(firstname_list)
 ## Label encoding word
@@ -176,7 +177,8 @@ lbl = LabelEncoder()
 words_df['word_encoded'] = lbl.fit_transform(list(words_df['mot'].values))
 
 caracteristique_mot = ['mot', 'is_firstname', 'is_stopword', 'is_first_char_upper',
-                       'is_upper', 'len_word', 'is_mister_word', 'word_encoded']
+                       'is_upper', 'len_word', 'is_mister_word', 'word_encoded',
+                       'is_foreign_firstname']
 for k in range(-4, 5):
     caracteristique_mot_k = [nom + ' ' + str(k) for nom in caracteristique_mot]
     if k  != 0:
@@ -196,7 +198,7 @@ words_df = words_df.merge(count_mot, on = ['doc_name', 'mot'])
 # to have granularite
 words_df['temp_count'] = 1
 # Cumulative sum of word by paragraph
-words_df['paragraph_cum_word' ] = words_df.groupby(['doc_name', 'paragraph_nb'])['temp_count'].cumsum()
+#words_df['paragraph_cum_word' ] = words_df.groupby(['doc_name', 'paragraph_nb'])['temp_count'].cumsum()
 # rank since last ";" or "."
 ## Create a bool a each end of sentence
 words_df["end_point"] = words_df['mot'].isin([";", "."])
