@@ -90,4 +90,4 @@ gsearch1 = GridSearchCV(estimator = xgb.XGBClassifier(learning_rate =0.1, n_esti
                        param_grid = params, scoring='f1',n_jobs=4, cv=skf)
 gsearch1.fit(X,y)
 
-print display_grid_scores(gsearch1.grid_scores_)
+print(display_grid_scores(gsearch1.grid_scores_))
