@@ -9,6 +9,7 @@ import re
 import nltk
 import random
 
+from nltk.stem import SnowballStemmer
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
@@ -162,16 +163,15 @@ firstname_list, foreign_firstname_list, name_list = read_name_list()
 mister_list = [u'M', u'M.', u'Madame', u'Mme', u'Monsieur', u'Dr', u'Monsieur', u'MM']
 
 
-def caracterisqute_du_mot(words_df, 
-                          stopword_df,
+def caracterisqute_du_mot(words_df,
                           firstname_list,
                           foreign_firstname_list,
                           mister_list):
-
     # nombre occurence dans le doc
     count_mot = words_df.groupby(['doc_name', 'mot']).size().to_frame('nb_mot').reset_index()
     words_df = words_df.merge(count_mot, on = ['doc_name', 'mot'])
     
+    stopword_fr = [word for word in stopwords.words('french')]
     words_df['is_stopword'] = words_df['mot'].str.lower().isin(stopword_fr)
     words_df['is_first_char_upper'] = words_df['mot'].str[0].str.isupper()
     words_df['is_upper'] = words_df['mot'].str.isupper()
@@ -182,11 +182,17 @@ def caracterisqute_du_mot(words_df,
     # id encoding usefull ? 
     lbl = LabelEncoder()
     words_df['word_encoded'] = lbl.fit_transform(list(words_df['mot'].values))
+    
+    stemmer = SnowballStemmer("french")
+    words_df['stem'] = words_df['mot'].apply(stemmer.stem)
     return words_df
 
 
 
-words_df = words_df(caracterisqute_du_mot)
+words_df = caracterisqute_du_mot(words_df,
+                          firstname_list,
+                          foreign_firstname_list,
+                          mister_list)
 
 
 def shift_words_data(words_df,
@@ -198,6 +204,7 @@ def shift_words_data(words_df,
         if k  != 0:
             words_df[liste_caracteristiques_k] = \
                 words_df.groupby(['doc_name'])[liste_caracteristiques].apply(lambda x: x.shift(k))
+    return words_df
 
 caracteristiques_mot = ['mot', 'is_firstname', 'is_stopword', 'is_first_char_upper',
                        'is_upper', 'len_word', 'is_mister_word', 'word_encoded',
