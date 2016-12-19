@@ -8,8 +8,10 @@ Created on Thu Dec 15 18:02:27 2016
 import operator
 import numpy as np
 import pandas as pd
-from sklearn.metrics import f1_score, recall_score, classification_report, accuracy_score, roc_auc_score
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import (
+    f1_score, fbeta_score, recall_score, classification_report,
+    accuracy_score, roc_auc_score, confusion_matrix
+    )
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -27,6 +29,12 @@ def xg_f1(yhat, y):
     y_bin = [1. if y_cont > 0.5 else 0. for y_cont in yhat] # binaryzing your output
     return 'f1',f1_score(y, y_bin)
 
+
+def xg_fbeta_5(yhat, y):
+    y = y.get_label()
+    y_bin = [1. if y_cont > 0.5 else 0. for y_cont in yhat] # binaryzing your output
+    return 'f0.5',fbeta_score(y, y_bin, 0.5)
+    
 
 def create_feature_map(features):
     outfile = open('xgb.fmap', 'w')
