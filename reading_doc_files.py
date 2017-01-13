@@ -126,15 +126,26 @@ import os
 
 
 path_jurinet = '/home/sgmap/data/jurinet'
+
 path_file = os.path.join(path_jurinet, 'labelises.csv')
 tab = pd.read_csv(path_file, nrows=10, sep=';')
 tab['text'] = tab['jurinet_standard'].apply(
     lambda x: word_tokenize(x, language='french')
     )
-tab['label'] = tab['label'].str[1:-1].str.split(',')
+tab['label'] = tab['concordance'].str[1:-1].str.split(',')
 
 assert all(tab['text'].apply(len) == tab['label'].apply(len))
 
+words_df = pd.DataFrame()
+for idx, decision in tab[['text', 'label']].iterrows():
+    document_temp = pd.DataFrame.from_dict({
+    'mot': decision['text'],
+    'tagged': decision['label'],
+    })
+    document_temp['doc_name'] = idx
+    document_temp['rank_word'] = range(len(document_temp))
+
+    words_df = pd.concat([words_df, document_temp])
 
 # Old
 #    tags = tagger.TagText(row.['paragraph'])
@@ -148,16 +159,15 @@ print("-"*54)
 print(" PREPROCESSING...")
 
 
-
-
 def read_name_list():
-    ## Loading annexe files (Firstaname / Names etc;..)
+    '''Loading annexe files (Firstaname / Names etc;..)'''
     # Reading French's firstnames file
-    firstname_df = pd.read_csv('other/data/prenom_clean.csv', encoding='utf-8',
-                               header=None, names = ["firstname"])
+    firstname_df = pd.read_csv(os.path.join(path_jurinet, 'nat2015.csv'))
+    # old version before Insee firstname file
+    # firstname_df = pd.read_csv('other/data/prenom_clean.csv', encoding='utf-8',
+    #                            header=None, names = ["firstname"])
     # Use Majuscule in first carac
-    firstname_df['firstname'] = firstname_df['firstname'].str.title()
-    firstname_list = firstname_df.firstname.tolist()
+    firstname_list = firstname_df['preusuel'].str.title().unique().tolist()
 
     # Reading foreign's firstnames file
     foreign_firstname_df =  pd.read_csv('other/data/foreign_fistname_clean.csv', encoding='utf-8',
@@ -171,10 +181,11 @@ def read_name_list():
 
 firstname_list, foreign_firstname_list, name_list = read_name_list()
 
-mister_list = [u'M', u'M.', u'Madame', u'Mme', u'Monsieur', u'Dr', u'Monsieur', u'MM']
+mister_list = [u'M', u'M.', u'Madame', u'Mme', u'Monsieur', u'Dr', u'Monsieur',
+               u'MM']
 
 
-def caracterisqute_du_mot(words_df,
+def caracteristique_du_mot(words_df,
                           firstname_list,
                           foreign_firstname_list,
                           mister_list):
@@ -202,7 +213,7 @@ def caracterisqute_du_mot(words_df,
 
 
 
-words_df = caracterisqute_du_mot(words_df,
+words_df = caracteristique_du_mot(words_df,
                           firstname_list,
                           foreign_firstname_list,
                           mister_list)
@@ -266,5 +277,6 @@ words_df = words_df.drop(['temp_count', 'end_comma', 'end_comma_cum',
 # Fillna Nan word shift
 #words_df = words_df.fillna(-1)
 
-#print " EXPORT..."
-words_df.to_csv('data/data.csv', encoding='utf-8', index=False)
+print(" EXPORT...")
+path_out = os.path.join(path_jurinet, 'words.csv')
+words_df.to_csv(path_out, encoding='utf-8', index=False)
