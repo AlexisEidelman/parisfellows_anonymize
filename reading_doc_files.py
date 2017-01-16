@@ -132,7 +132,7 @@ tab = pd.read_csv(path_file, nrows=10, sep=';')
 tab['text'] = tab['jurinet_standard'].apply(
     lambda x: word_tokenize(x, language='french')
     )
-tab['label'] = tab['concordance'].str[1:-1].str.split(',')
+tab['label'] = tab['concordance'].str[1:-1].str.split(', ')
 
 assert all(tab['text'].apply(len) == tab['label'].apply(len))
 
@@ -146,6 +146,10 @@ for idx, decision in tab[['text', 'label']].iterrows():
     document_temp['rank_word'] = range(len(document_temp))
 
     words_df = pd.concat([words_df, document_temp])
+
+
+words_df['tagged'] = words_df['tagged'] == 'True'
+
 
 # Old
 #    tags = tagger.TagText(row.['paragraph'])
@@ -253,7 +257,7 @@ words_df["end_point"] = words_df['mot'].isin([";", "."])
 #end_point = words_df['mot'].isin([";", "."])
 # words_df['end_point'] = words_df['rank_word'][end_point]
 
-words_df['temp_count' ] = 1
+words_df['temp_count'] = 1
 words_df['end_point_cum' ] = words_df.groupby(['doc_name'])['end_point'].cumsum()
 words_df['end_point_size'] = words_df.groupby(['doc_name', 'end_point_cum'])['temp_count'].transform(sum)
 words_df['end_point_cum_word'] = words_df.groupby(['doc_name', 'end_point_cum'])['temp_count'].cumsum()
