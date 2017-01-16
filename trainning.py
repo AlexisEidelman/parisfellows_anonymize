@@ -4,7 +4,7 @@ Created on Tue Jul 19 18:07:26 2016
 
 @author: babou
 """
-
+import os
 import random
 import pandas as pd
 import numpy as np
@@ -31,27 +31,23 @@ MODEL_NAME = "stem"
 #         'word_encoded_shift_1a' : 'str',
 #         'word_encoded_shift_2a' : 'str'}
 
-data = pd.read_csv('data/data.csv', encoding='utf-8')#, dtype=dtype)
+path_jurinet = '/home/sgmap/data/jurinet'
+path_out = os.path.join(path_jurinet, 'words.csv')
+all_data = pd.read_csv(path_out, encoding='utf-8')
 
-# To test features selection
-delcol = [u'word_encoded'] # with 0.9344
-data = data.drop(delcol, axis=1)
+# useless means "not in the model"
+mots_cols = [x for x in all_data.columns if x.startswith('mot')]
+stem_not_encoded = [x for x in all_data.columns if x.startswith('stem') and
+    not x.startswith('stem_encoded')]
+useless_col = mots_cols + stem_not_encoded + ['doc_name']
+useful_col = [col for col in all_data.columns if col not in useless_col]
 
-useful_col = [col for col in data.columns if col not in ['mot', 'doc_name', 'paragraph_nb', 'firstname_is_french',
-                                                         'admin_name', 'add_row', 'admin_firstname']]
-useful_col = [col for col in useful_col if col[:3] not in ['ste', 'mot']]
+data = all_data[useful_col]
+target = data['tagged']
+data = data.drop('tagged', axis=1)
 
-word_save = data['mot']
-doc_name_save = data['doc_name']
-#paragraph_nb_save = data['paragraph_nb']
-firstname_is_french_save = data['is_french_firstname']
-#admin_name_save = data['admin_name']
-#add_row_save = data['add_row']
-#admin_firstname_save = data['admin_firstname']
-data = data[useful_col]
-
-y = data['tagged']
-X = data.drop('tagged', axis=1)
+y = target
+X = data
 
 ratio = float(np.sum(y == 0)) / np.sum(y==1)
 
@@ -62,7 +58,7 @@ X.fillna(False, inplace=True)
 
 # On coupe l'échantillon en 3
 def split(X, y, ratio_size, groupe=None):
-    ''' retourne deux quatres tables. Les deux premières issues de X, 
+    ''' retourne deux quatres tables. Les deux premières issues de X,
         les deux suivantes issues de y
         - X1 et X2, ont une taille (1-ratio_size)*len(X) et ratio_size*len(X)
         - y1 et y2, ont une taille (1-ratio_size)*len(y) et ratio_size*len(y)
@@ -74,22 +70,26 @@ def split(X, y, ratio_size, groupe=None):
     # methode 1: on considère les mots indépendamment.
     if groupe is None:
         return train_test_split(X, y, stratify=y, test_size=ratio_size, random_state=20)
-    
+
     # méthode 2 : on choisit des documents aléatoire
     integer_size = int(ratio_size*(groupe.nunique()))
     valide_doc_sample = random.sample(groupe.unique().tolist(), integer_size)
     cond_valide = groupe.isin(valide_doc_sample)
     X1, y1 = X[~cond_valide], y[~cond_valide]
-    X2, y2 = X[cond_valide], y[cond_valide] 
+    X2, y2 = X[cond_valide], y[cond_valide]
     return X1, X2, y1, y2
 
 
-X_trainning, X_valide, y_trainning, y_valide = split(X, y, 0.2, groupe=doc_name_save)
-doc_name_save_train = X_trainning.join(doc_name_save)['doc_name']
-X_train, X_test, y_train, y_test  = split(X_trainning, y_trainning, 0.33,
-                                          groupe=doc_name_save_train)
+doc_name = all_data['doc_name']
+X_trainning, X_valide, y_trainning, y_valide = split(X, y, 0.2,
+                                                     groupe=all_data['doc_name'])
 
-xxx
+all_data_trainning = all_data.loc[X_trainning.index]
+all_data_valide = all_data.loc[X_valide.index]
+X_train, X_test, y_train, y_test  = split(X_trainning, y_trainning, 0.33,
+                                          groupe=all_data_trainning['doc_name'])
+all_data_test = all_data_trainning.loc[X_train.index]
+all_data_train = all_data_trainning.loc[X_train.index]
 
 dtrain = xgb.DMatrix(X_train, y_train, missing=-1)
 dtest = xgb.DMatrix(X_test, y_test, missing=-1)
@@ -107,61 +107,48 @@ params = {'max_depth':9,#12,
          'nthread':8,
          'seed':42}
 
-num_round = 400
-
-#bst = xgb.train(params, dtrain, num_round, evallist, early_stopping_rounds=5,
-#               feval=xg_f1, maximize=True)
+num_round = 40
 
 
-bst2 = xgb.train(params, dtrain, num_round, evallist, early_stopping_rounds=5,
+bst = xgb.train(params, dtrain, num_round, evallist, early_stopping_rounds=5,
                feval=xg_fbeta_5, maximize=True)
-               
+
 # Validation on X_test
-y_pred = bst2.predict(xgb.DMatrix(X_test, missing=-1), ntree_limit=bst2.best_ntree_limit)
-y_pred_b = [1. if y_cont > 0.5 else 0. for y_cont in y_pred] # binaryzing your output
+y_pred = bst.predict(xgb.DMatrix(X_test, missing=-1), ntree_limit=bst.best_ntree_limit)
+y_pred_b = [True if y_cont > 0.5 else False for y_cont in y_pred] # binaryzing your output
 f1_test = f1_score(y_test, y_pred_b)
 print("F1 score on Test dataset: "+ str(f1_test))
 
 # Validation on Valide dataset
-y_pred_valide = bst2.predict(xgb.DMatrix(X_valide, missing=-1), ntree_limit=bst2.best_ntree_limit)
-y_pred_valide_b = [1. if y_cont > 0.5 else 0. for y_cont in y_pred_valide] # binaryzing your output
+y_pred_valide = bst.predict(xgb.DMatrix(X_valide, missing=-1), ntree_limit=bst.best_ntree_limit)
+y_pred_valide_b = [True if y_cont > 0.5 else False for y_cont in y_pred_valide] # binaryzing your output
+y_pred_valide_b = pd.Series(y_pred_valide_b, index=X_valide.index)
+
 f1_valide = f1_score(y_valide, y_pred_valide_b)
 print("F1 score on unknow dataset: "+ str(f1_valide))
 
 
-X_valide_all = X_valide.join(word_save).join(doc_name_save)
-#X_valide = X_valide.join(paragraph_nb_save)
-#X_valide = X_valide.join(admin_name_save)
-#X_valide = X_valide.join(add_row_save)
-#X_valide = X_valide.join(admin_firstname_save)
 path_model = 'model/' + MODEL_NAME + "_" + str(f1_valide) + ".model"
-print("Export model in " + str(path_model))
-f = open(path_model, 'wb')
-pickle.dump(bst2, f)
-f.close()
+#print("Export model in " + str(path_model))
+#f = open(path_model, 'wb')
+#    pickle.dump(bst, f)
+#    f.close()
 
 
+def evaluation_generale(prediction_validation, X = all_data):
 
-def evaluation_generale(prediction_validation, X_valide):    
-    X_valide['tagged'] = y_valide
-    X_valide['y_pred_proba'] = y_pred_valide
-    X_valide['error'] = X_valide['tagged'] != y_valide
-    
-    data['mot'] = word_save
-    data['doc_name'] = doc_name_save
-    #data['admin_name'] = admin_name_save
-    #data['add_row'] = add_row_save
-    #data['admin_firstname'] = admin_firstname_save
-    
+    data = X.loc[prediction_validation.index]
+    y_valide = data['tagged']
+
     print("_"*54)
     print("Some metrics : ")
     get_metric(y_valide, prediction_validation)
-    
+
     print("_"*54)
     print("Confusion matrix : ")
     cm = confusion_matrix(y_valide, prediction_validation)
     print(cm)
-    
+
 
 first_char_upper = (X_valide.is_first_char_upper)
 first_char_upper_and_not_first_place = (X_valide.is_first_char_upper) & (X_valide['end_point_cum_word'] != 1)
@@ -170,20 +157,27 @@ first_char_upper_and_not_first_place = (X_valide.is_first_char_upper) & (X_valid
 logistic = LogisticRegression()
 logistic.fit(X_trainning, y_trainning)
 logisitc_pred = logistic.predict(X_valide)
+logisitc_pred = pd.Series(logisitc_pred, index=X_valide.index)
 
 for prediction in [y_pred_valide_b, first_char_upper,
                    first_char_upper_and_not_first_place,
                    logisitc_pred]:
-    evaluation_generale(prediction, X_valide_all)
-    
+    evaluation_generale(prediction)
+
 
 
 # Analyse error :
-error = X_valide[X_valide['error']]
-fp = X_valide[(X_valide['error']) & (y_valide)] # False Positive selector
-fn = X_valide[(X_valide['error']) & (~y_valide)] # False Negative selector
-good = X_valide[(~X_valide['error']) & (y_valide)]
-    
+X = all_data
+prediction = logisitc_pred
+data = X.loc[prediction.index]
+error = prediction != data['tagged']
+data_error = data[error]
+fp = data[(error) & (~prediction)] # False Positive selector
+fn = data[(error) & (prediction)] # False Negative selector
+good = X_valide[(~error) & (prediction)]
+
+
+
 bench_features = [col for col in X_valide.columns
                 if col not in ['word_encoded_shift_2b', 'word_encoded_shift_2a',
                                'word_encoded_shift_1b', 'word_encoded_shift_1a']]
@@ -209,7 +203,7 @@ analyse_mean = pd.DataFrame(
      'good' : good.mean().get_values(),
      'error' : error.mean().get_values(),
      })
-    
+
 get_graph_features_mean(analyse_mean, bench_features_bool)
 
 proba = X_valide['y_pred_proba']
