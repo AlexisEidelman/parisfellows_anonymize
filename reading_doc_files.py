@@ -138,7 +138,6 @@ print(" PREPROCESSING...")
 
 
 
-
 def read_name_list():
     ## Loading annexe files (Firstaname / Names etc;..)
     # Reading French's firstnames file
@@ -160,7 +159,10 @@ def read_name_list():
 
 firstname_list, foreign_firstname_list, name_list = read_name_list()
 
-mister_list = [u'M', u'M.', u'Madame', u'Mme', u'Monsieur', u'Dr', u'Monsieur', u'MM']
+mister_list = [u'M', u'M.', u'Madame', u'Mme', u'Monsieur', u'Dr', u'Monsieur',
+               u'MM', 'Demoiselle',
+               'consorts',
+               'veuve']
 
 
 def caracterisqute_du_mot(words_df,
