@@ -17,22 +17,20 @@ from sklearn.linear_model import LogisticRegression
 from evaluate import (xg_f1, xg_fbeta_5, fbeta_score, f1_score, get_metric,
                       confusion_matrix, get_graph_features_mean)
 
+### paramètres du fichier
+
 DUMMY = False #To dummys caterogical features
 MODEL_NAME = "stem"
 
 
 #################################################
-###                 GENERAL                   ###
+###           CHARGE LES DONNEES              ###
 #################################################
 
-#dtype = {'word_encoded' : 'str',
-#         'word_encoded_shift_1b' : 'str',
-#         'word_encoded_shift_2b' : 'str',
-#         'word_encoded_shift_1a' : 'str',
-#         'word_encoded_shift_2a' : 'str'}
-
 path_jurinet = '/home/sgmap/data/jurinet'
-path_out = os.path.join(path_jurinet, 'words.csv')
+path_jurinet = 'D:\data\jurinet'
+
+path_out = os.path.join(path_jurinet, 'words1.csv')
 all_data = pd.read_csv(path_out, encoding='utf-8')
 
 # useless means "not in the model"
@@ -55,6 +53,11 @@ if DUMMY == True:
     X = pd.get_dummies(X)
 
 X.fillna(False, inplace=True)
+
+
+#################################################
+###              ECHANTILLONS                 ###
+#################################################
 
 # On coupe l'échantillon en 3
 def split(X, y, ratio_size, groupe=None):
@@ -93,13 +96,21 @@ all_data_train = all_data_trainning.loc[X_train.index]
 
 dtrain = xgb.DMatrix(X_train, y_train, missing=-1)
 dtest = xgb.DMatrix(X_test, y_test, missing=-1)
-evallist = [(dtrain, 'train'), (dtest, 'test')]
+dvalide = xgb.DMatrix(X_valide, y_valide, missing=-1)
+evallist = [(dtrain, 'train'), (dtest, 'test'), (dvalide, 'valide')]
+
+
+
+#################################################
+###              XGBOOST                     ###
+#################################################
+
 
 params = {'max_depth':9,#12,
          'eta':0.1,#0.01,
          'subsample':0.9,#0.8,
 #         'colsample_bytree':0.95,#0.7,
-         'silent':1,
+         'silent':0,
          'scale_pos_weight' : ratio,
 #         'min_child_weight': 6,
         # 'max_delta_step': 0.086,
@@ -135,6 +146,38 @@ path_model = 'model/' + MODEL_NAME + "_" + str(f1_valide) + ".model"
 #    f.close()
 
 
+
+
+#################################################
+###              DECISION TREE                ###
+#################################################
+from sklearn import tree
+clf = tree.tree.DecisionTreeClassifier(max_depth=3)
+clf = clf.fit(X_train, y_train)
+
+import pydotplus
+dot_data = tree.export_graphviz(clf, out_file=None) 
+
+with open("iris.dot", 'w') as f:
+    f = tree.export_graphviz(clf, out_file=f)
+
+dot_data = tree.export_graphviz(clf, out_file=None, 
+                         feature_names=X_train.columns,  
+                         class_names=['commun', 'propre'],  
+                         filled=True, rounded=True,  
+                         special_characters=True)
+
+graph = pydotplus.graph_from_dot_data(dot_data)
+from IPython.display import Image
+Image(graph.create_png())
+
+#################################################
+###              XGBOOST                     ###
+#################################################
+
+
+
+
 def evaluation_generale(prediction_validation, X = all_data):
 
     data = X.loc[prediction_validation.index]
@@ -150,8 +193,14 @@ def evaluation_generale(prediction_validation, X = all_data):
     print(cm)
 
 
-first_char_upper = (X_valide.is_first_char_upper)
-first_char_upper_and_not_first_place = (X_valide.is_first_char_upper) & (X_valide['end_point_cum_word'] != 1)
+first_char_upper = (all_data.is_first_char_upper)
+first_char_upper_and_not_first_place = (all_data.is_first_char_upper) & (all_data['end_point_cum_word'] != 1)
+
+all_regles = (
+    all_data.is_first_char_upper &
+    (all_data['end_point_cum_word'] != 1) &
+    (~all_data.is_stopword)
+    )
 
 
 logistic = LogisticRegression()
@@ -165,19 +214,29 @@ for prediction in [y_pred_valide_b, first_char_upper,
     evaluation_generale(prediction)
 
 
-
 # Analyse error :
 X = all_data
-prediction = logisitc_pred
+prediction = all_regles
 data = X.loc[prediction.index]
 error = prediction != data['tagged']
-data_error = data[error]
-fp = data[(error) & (~prediction)] # False Positive selector
-fn = data[(error) & (prediction)] # False Negative selector
-good = X_valide[(~error) & (prediction)]
+fp = (error) & (prediction) # False Positive selector
+fn = (error) & (~prediction) # False Negative selector
+tp = data['tagged'] & prediction
+tn = ~data['tagged'] & ~prediction
 
+data['error'] = error
+data['fp'] = fp
+data['fn'] = fn
+data['tp'] = tp
+data['tn'] = tn
 
+eval_by_word = data[['tp','fp','fn','tn']].sum()
+eval_by_word
 
+eval_by_text = data[['tp','fp','fn','tn', 'doc_name']].groupby('doc_name').sum()
+(eval_by_text > 0).sum()
+
+xxx
 bench_features = [col for col in X_valide.columns
                 if col not in ['word_encoded_shift_2b', 'word_encoded_shift_2a',
                                'word_encoded_shift_1b', 'word_encoded_shift_1a']]
