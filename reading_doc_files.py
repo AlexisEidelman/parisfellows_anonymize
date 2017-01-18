@@ -126,13 +126,15 @@ import os
 
 
 path_jurinet = '/home/sgmap/data/jurinet'
+path_jurinet = 'D:\data\jurinet'
+
 
 path_file = os.path.join(path_jurinet, 'labelises.csv')
-tab = pd.read_csv(path_file, nrows=10, sep=';')
+tab = pd.read_csv(path_file, nrows=None, sep=';')
 tab['text'] = tab['jurinet_standard'].apply(
     lambda x: word_tokenize(x, language='french')
     )
-tab['label'] = tab['concordance'].str[1:-1].str.split(', ')
+tab['label'] = tab['label'].str[1:-1].str.split(', ')
 
 assert all(tab['text'].apply(len) == tab['label'].apply(len))
 
@@ -219,13 +221,6 @@ def caracteristique_du_mot(words_df,
     return words_df
 
 
-
-words_df = caracteristique_du_mot(words_df,
-                          firstname_list,
-                          foreign_firstname_list,
-                          mister_list)
-
-
 def shift_words_data(words_df,
                      nb_mot_avant, nb_mot_apres,
                      liste_caracteristiques):
@@ -237,53 +232,62 @@ def shift_words_data(words_df,
                 words_df.groupby(['doc_name'])[liste_caracteristiques].apply(lambda x: x.shift(k))
     return words_df
 
+
 caracteristiques_mot = ['mot', 'is_stopword', 'is_first_char_upper',
                        'is_upper', 'len_word', 'is_mister_word', 'word_encoded',
                        'is_firstname','is_french_firstname',
                        'nb_mot']
 
-words_df = shift_words_data(words_df, -4, 5, caracteristiques_mot)
+
+for k in range(20):
+    print(k)
+    words_df_k = words_df.iloc[int(k*1e6):int((k+1)*1e6)]
+    words_df_k = caracteristique_du_mot(words_df_k,
+                          firstname_list,
+                          foreign_firstname_list,
+                          mister_list)
+    words_df_k = shift_words_data(words_df_k, -4, 5, caracteristiques_mot)
 
 
 
-##########################################################
-####             Caractéristique de la position        ###
-
-
-# to have granularite
-words_df['temp_count'] = 1
-# Cumulative sum of word by paragraph
-#words_df['paragraph_cum_word' ] = words_df.groupby(['doc_name', 'paragraph_nb'])['temp_count'].cumsum()
-# rank since last ";" or "."
-## Create a bool a each end of sentence
-words_df["end_point"] = words_df['mot'].isin([";", "."])
-#end_point = words_df['mot'].isin([";", "."])
-# words_df['end_point'] = words_df['rank_word'][end_point]
-
-words_df['temp_count'] = 1
-words_df['end_point_cum' ] = words_df.groupby(['doc_name'])['end_point'].cumsum()
-words_df['end_point_size'] = words_df.groupby(['doc_name', 'end_point_cum'])['temp_count'].transform(sum)
-words_df['end_point_cum_word'] = words_df.groupby(['doc_name', 'end_point_cum'])['temp_count'].cumsum()
-words_df['end_point_cum_word_reverse'] = words_df['end_point_size'] - words_df['end_point_cum_word']
-#words_df = words_df.drop(['temp_count', 'end_point', 'end_point_cum'], axis=1)
-
-# Cumulative sum of word by senstence end by ","
-## Create a bool a each end of sentence
-words_df["end_comma"] = words_df['mot'].isin([",",";", "."])
-words_df['end_comma_cum' ] = words_df.groupby(['doc_name'])['end_comma'].cumsum()
-words_df['end_comma_size'] = words_df.groupby(['doc_name', 'end_comma_cum'])['temp_count'].transform(sum)
-words_df['end_comma_cum_word' ] = words_df.groupby(['doc_name', 'end_comma_cum'])['temp_count'].cumsum()
-words_df['end_comma_cum_word_reverse' ] = words_df['end_comma_size'] - words_df['end_comma_cum_word']
-
-# Del temp preprocessing features
-words_df = words_df.drop(['temp_count', 'end_comma', 'end_comma_cum',
-                       'end_point', 'end_point_cum'], axis=1)
-
-# TODO: entre is_entre_guillemet
-
-# Fillna Nan word shift
-#words_df = words_df.fillna(-1)
-
-print(" EXPORT...")
-path_out = os.path.join(path_jurinet, 'words.csv')
-words_df.to_csv(path_out, encoding='utf-8', index=False)
+    ##########################################################
+    ####             Caractéristique de la position        ###
+    
+    
+    # to have granularite
+    words_df_k['temp_count'] = 1
+    # Cumulative sum of word by paragraph
+    #words_df_k['paragraph_cum_word' ] = words_df_k.groupby(['doc_name', 'paragraph_nb'])['temp_count'].cumsum()
+    # rank since last ";" or "."
+    ## Create a bool a each end of sentence
+    words_df_k["end_point"] = words_df_k['mot'].isin([";", "."])
+    #end_point = words_df_k['mot'].isin([";", "."])
+    # words_df_k['end_point'] = words_df_k['rank_word'][end_point]
+    
+    words_df_k['temp_count'] = 1
+    words_df_k['end_point_cum' ] = words_df_k.groupby(['doc_name'])['end_point'].cumsum()
+    words_df_k['end_point_size'] = words_df_k.groupby(['doc_name', 'end_point_cum'])['temp_count'].transform(sum)
+    words_df_k['end_point_cum_word'] = words_df_k.groupby(['doc_name', 'end_point_cum'])['temp_count'].cumsum()
+    words_df_k['end_point_cum_word_reverse'] = words_df_k['end_point_size'] - words_df_k['end_point_cum_word']
+    #words_df_k = words_df_k.drop(['temp_count', 'end_point', 'end_point_cum'], axis=1)
+    
+    # Cumulative sum of word by senstence end by ","
+    ## Create a bool a each end of sentence
+    words_df_k["end_comma"] = words_df_k['mot'].isin([",",";", "."])
+    words_df_k['end_comma_cum' ] = words_df_k.groupby(['doc_name'])['end_comma'].cumsum()
+    words_df_k['end_comma_size'] = words_df_k.groupby(['doc_name', 'end_comma_cum'])['temp_count'].transform(sum)
+    words_df_k['end_comma_cum_word' ] = words_df_k.groupby(['doc_name', 'end_comma_cum'])['temp_count'].cumsum()
+    words_df_k['end_comma_cum_word_reverse' ] = words_df_k['end_comma_size'] - words_df_k['end_comma_cum_word']
+    
+    # Del temp preprocessing features
+    words_df_k = words_df_k.drop(['temp_count', 'end_comma', 'end_comma_cum',
+                           'end_point', 'end_point_cum'], axis=1)
+    
+    # TODO: entre is_entre_guillemet
+    
+    # Fillna Nan word shift
+    #words_df_k = words_df_k.fillna(-1)
+    
+    print(" EXPORT...")
+    path_out = os.path.join(path_jurinet, 'words' + str(k) + '.csv')
+    words_df_k.to_csv(path_out, encoding='utf-8', index=False)
