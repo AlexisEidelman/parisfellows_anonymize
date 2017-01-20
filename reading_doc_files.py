@@ -1,5 +1,4 @@
-﻿# -*- coding: utf-8 -*-
-"""
+﻿"""
 Created on Mon Jul 18 12:24:13 2016
 
 @author: babou
@@ -50,6 +49,7 @@ def noms_retires(mots_init, mots_modif, verbose=False):
                 print(mots_modif[k], mots_init[k])
             pseudonym[k] = True
     return pseudonym
+
 
 def get_target(sentence):
     for i in range(len(sentence.split(' '))):
@@ -130,27 +130,16 @@ path_jurinet = 'D:\data\jurinet'
 
 
 path_file = os.path.join(path_jurinet, 'labelises.csv')
+
 tab = pd.read_csv(path_file, nrows=None, sep=';')
+
 tab['text'] = tab['jurinet_standard'].apply(
     lambda x: word_tokenize(x, language='french')
     )
+
 tab['label'] = tab['label'].str[1:-1].str.split(', ')
 
 assert all(tab['text'].apply(len) == tab['label'].apply(len))
-
-words_df = pd.DataFrame()
-for idx, decision in tab[['text', 'label']].iterrows():
-    document_temp = pd.DataFrame.from_dict({
-    'mot': decision['text'],
-    'tagged': decision['label'],
-    })
-    document_temp['doc_name'] = idx
-    document_temp['rank_word'] = range(len(document_temp))
-
-    words_df = pd.concat([words_df, document_temp])
-
-
-words_df['tagged'] = words_df['tagged'] == 'True'
 
 
 # Old
@@ -240,8 +229,25 @@ caracteristiques_mot = ['mot', 'is_stopword', 'is_first_char_upper',
 
 
 for k in range(20):
+
     print(k)
-    words_df_k = words_df.iloc[int(k*1e6):int((k+1)*1e6)]
+    list_doc_name = range(k, len(tab), 20)
+    words_df = pd.DataFrame()
+    subset = tab.iloc[list_doc_name]
+    subset = subset[['text', 'label']]
+    
+    for idx, decision in subset.iterrows():
+        document_temp = pd.DataFrame.from_dict({
+        'mot': decision['text'],
+        'tagged': decision['label'],
+        })
+        document_temp['doc_name'] = idx
+        document_temp['rank_word'] = range(len(document_temp))
+
+        words_df = pd.concat([words_df, document_temp])
+
+    words_df['tagged'] = words_df['tagged'] == 'True'
+    words_df_k = words_df[words_df['doc_name'].isin(list_doc_name)]
     words_df_k = caracteristique_du_mot(words_df_k,
                           firstname_list,
                           foreign_firstname_list,
@@ -252,8 +258,8 @@ for k in range(20):
 
     ##########################################################
     ####             Caractéristique de la position        ###
-    
-    
+
+
     # to have granularite
     words_df_k['temp_count'] = 1
     # Cumulative sum of word by paragraph
@@ -263,14 +269,14 @@ for k in range(20):
     words_df_k["end_point"] = words_df_k['mot'].isin([";", "."])
     #end_point = words_df_k['mot'].isin([";", "."])
     # words_df_k['end_point'] = words_df_k['rank_word'][end_point]
-    
+
     words_df_k['temp_count'] = 1
     words_df_k['end_point_cum' ] = words_df_k.groupby(['doc_name'])['end_point'].cumsum()
     words_df_k['end_point_size'] = words_df_k.groupby(['doc_name', 'end_point_cum'])['temp_count'].transform(sum)
     words_df_k['end_point_cum_word'] = words_df_k.groupby(['doc_name', 'end_point_cum'])['temp_count'].cumsum()
     words_df_k['end_point_cum_word_reverse'] = words_df_k['end_point_size'] - words_df_k['end_point_cum_word']
     #words_df_k = words_df_k.drop(['temp_count', 'end_point', 'end_point_cum'], axis=1)
-    
+
     # Cumulative sum of word by senstence end by ","
     ## Create a bool a each end of sentence
     words_df_k["end_comma"] = words_df_k['mot'].isin([",",";", "."])
@@ -278,16 +284,16 @@ for k in range(20):
     words_df_k['end_comma_size'] = words_df_k.groupby(['doc_name', 'end_comma_cum'])['temp_count'].transform(sum)
     words_df_k['end_comma_cum_word' ] = words_df_k.groupby(['doc_name', 'end_comma_cum'])['temp_count'].cumsum()
     words_df_k['end_comma_cum_word_reverse' ] = words_df_k['end_comma_size'] - words_df_k['end_comma_cum_word']
-    
+
     # Del temp preprocessing features
     words_df_k = words_df_k.drop(['temp_count', 'end_comma', 'end_comma_cum',
                            'end_point', 'end_point_cum'], axis=1)
-    
+
     # TODO: entre is_entre_guillemet
-    
+
     # Fillna Nan word shift
     #words_df_k = words_df_k.fillna(-1)
-    
+
     print(" EXPORT...")
     path_out = os.path.join(path_jurinet, 'words' + str(k) + '.csv')
     words_df_k.to_csv(path_out, encoding='utf-8', index=False)
