@@ -4,6 +4,8 @@ Created on Mon Jul 18 12:24:13 2016
 @author: babou
 """
 import pandas as pd
+import numpy as np
+
 import re
 import nltk
 import random
@@ -129,17 +131,17 @@ path_jurinet = '/home/sgmap/data/jurinet'
 path_jurinet = 'D:\data\jurinet'
 
 
-path_file = os.path.join(path_jurinet, 'labelises.csv')
-
-tab = pd.read_csv(path_file, nrows=None, sep=';')
-
-tab['text'] = tab['jurinet_standard'].apply(
-    lambda x: word_tokenize(x, language='french')
-    )
-
-tab['label'] = tab['label'].str[1:-1].str.split(', ')
-
-assert all(tab['text'].apply(len) == tab['label'].apply(len))
+#path_file = os.path.join(path_jurinet, 'labelises.csv')
+#
+#tab = pd.read_csv(path_file, nrows=None, sep=';')
+#
+#tab['text'] = tab['jurinet_standard'].apply(
+#    lambda x: word_tokenize(x, language='french')
+#    )
+#
+#tab['label'] = tab['label'].str[1:-1].str.split(', ')
+#
+#assert all(tab['text'].apply(len) == tab['label'].apply(len))
 
 
 # Old
@@ -150,9 +152,30 @@ assert all(tab['text'].apply(len) == tab['label'].apply(len))
 #                          'type' : w[1],
 #                            'lemma' : w[2]})
 
+##########################################################
+####             Caractéristique de la position        ###
+
+
+def count_rank_after(liste, stopwords):
+    # TODO: faire le reverse
+    rank_after = np.empty(len(liste))
+    counter = 0
+    for idx, word in enumerate(liste):
+        counter += 1
+        if word in stopwords:
+            counter = 0
+        rank_after[idx] = counter
+    return rank_after
+
+
+tab['rank_ligne'] = tab['text'].apply(lambda x: count_rank_after(x, 'saut_de_ligne'))
+tab['rank_point'] = tab['text'].apply(lambda x: count_rank_after(x, '.'))
+tab['rank_point_virgule'] = tab['text'].apply(lambda x: count_rank_after(x, ['.',';']))
+tab['rank_virgule'] = tab['text'].apply(lambda x: count_rank_after(x, ['.',';',',']))
+
+
 print("-"*54)
 print(" PREPROCESSING...")
-
 
 
 def read_name_list():
@@ -234,60 +257,45 @@ for k in range(20):
     list_doc_name = range(k, len(tab), 20)
     words_df_k = pd.DataFrame()
     subset = tab.iloc[list_doc_name]
-    subset = subset[['text', 'label']]
+
+    series = dict()
+    for serie in ['text', 'label', 'rank_ligne', 'rank_point',
+                  'rank_point_virgule', 'rank_virgule',
+                  'doc_name', 'rank_word']:
+        series[serie] = list()
 
     for idx, decision in subset.iterrows():
-        document_temp = pd.DataFrame.from_dict({
-        'mot': decision['text'],
-        'tagged': decision['label'],
-        })
-        document_temp['doc_name'] = idx
-        document_temp['rank_word'] = range(len(document_temp))
+        for serie in ['text', 'label', 'rank_ligne', 'rank_point',
+                      'rank_point_virgule', 'rank_virgule']:
+            if not isinstance(decision[serie], list):
+                decision[serie] = decision[serie].tolist()
+            series[serie] += decision[serie]
+            
+        series['doc_name'] += [idx]*len(decision[serie])
+        series['rank_word'] += range(len(decision[serie]))
 
-        words_df_k = pd.concat([words_df_k, document_temp])
+    words_df_k = pd.DataFrame.from_dict(series)
+    words_df_k.rename(columns={'text':'mot', 'label':'tagged'}, inplace=True)
 
     words_df_k['tagged'] = words_df_k['tagged'] == 'True'
+    
     words_df_k = caracteristique_du_mot(words_df_k,
                           firstname_list,
                           foreign_firstname_list,
                           mister_list)
 
+    for col in ['rank_ligne', 'rank_point', 'rank_point_virgule',
+                      'rank_virgule']:
+        words_df_k = words_df_k[words_df_k[col] != 0]
+    # on gagne 17% de mots en moins
+    # Remarque :on perd ces mots pour savoir quels mots sont avant ou 
+    # après mais la position via rank compense cette perte
+
     words_df_k = shift_words_data(words_df_k, -4, 5, caracteristiques_mot)
 
-
-
-    ##########################################################
-    ####             Caractéristique de la position        ###
-
-
-    # to have granularite
-    words_df_k['temp_count'] = 1
-    # Cumulative sum of word by paragraph
-    #words_df_k['paragraph_cum_word' ] = words_df_k.groupby(['doc_name', 'paragraph_nb'])['temp_count'].cumsum()
-    # rank since last ";" or "."
-    ## Create a bool a each end of sentence
-    words_df_k["end_point"] = words_df_k['mot'].isin([";", "."])
-    #end_point = words_df_k['mot'].isin([";", "."])
-    # words_df_k['end_point'] = words_df_k['rank_word'][end_point]
-
-    words_df_k['temp_count'] = 1
-    words_df_k['end_point_cum' ] = words_df_k.groupby(['doc_name'])['end_point'].cumsum()
-    words_df_k['end_point_size'] = words_df_k.groupby(['doc_name', 'end_point_cum'])['temp_count'].transform(sum)
-    words_df_k['end_point_cum_word'] = words_df_k.groupby(['doc_name', 'end_point_cum'])['temp_count'].cumsum()
-    words_df_k['end_point_cum_word_reverse'] = words_df_k['end_point_size'] - words_df_k['end_point_cum_word']
-    #words_df_k = words_df_k.drop(['temp_count', 'end_point', 'end_point_cum'], axis=1)
-
-    # Cumulative sum of word by senstence end by ","
-    ## Create a bool a each end of sentence
-    words_df_k["end_comma"] = words_df_k['mot'].isin([",",";", "."])
-    words_df_k['end_comma_cum' ] = words_df_k.groupby(['doc_name'])['end_comma'].cumsum()
-    words_df_k['end_comma_size'] = words_df_k.groupby(['doc_name', 'end_comma_cum'])['temp_count'].transform(sum)
-    words_df_k['end_comma_cum_word' ] = words_df_k.groupby(['doc_name', 'end_comma_cum'])['temp_count'].cumsum()
-    words_df_k['end_comma_cum_word_reverse' ] = words_df_k['end_comma_size'] - words_df_k['end_comma_cum_word']
-
-    # Del temp preprocessing features
-    words_df_k = words_df_k.drop(['temp_count', 'end_comma', 'end_comma_cum',
-                           'end_point', 'end_point_cum'], axis=1)
+    words_df_k = words_df_k[~words_df_k['is_stopword']]
+    del words_df_k['is_stopword']
+    # on a encore 30% de mots en moins !
 
     # TODO: entre is_entre_guillemet
 
