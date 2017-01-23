@@ -189,7 +189,7 @@ def caracteristique_du_mot(words_df,
                           mister_list):
     # nombre occurence dans le doc
     count_mot = words_df.groupby(['doc_name', 'mot']).size().to_frame('nb_mot').reset_index()
-    words_df = words_df.merge(count_mot, on = ['doc_name', 'mot'])
+    words_df = words_df.merge(count_mot, on = ['doc_name', 'mot'], how='left')
 
     stopword_fr = [word for word in stopwords.words('french')]
     words_df['is_stopword'] = words_df['mot'].str.lower().isin(stopword_fr)
@@ -214,11 +214,11 @@ def shift_words_data(words_df,
                      nb_mot_avant, nb_mot_apres,
                      liste_caracteristiques):
     ''' update words_df table (by doc_name'''
+    data_by_doc = words_df.groupby(['doc_name'])[liste_caracteristiques]
     for k in range(nb_mot_avant, nb_mot_apres):
         liste_caracteristiques_k = [nom + ' ' + str(k) for nom in liste_caracteristiques]
-        if k  != 0:
-            words_df[liste_caracteristiques_k] = \
-                words_df.groupby(['doc_name'])[liste_caracteristiques].apply(lambda x: x.shift(k))
+        if k != 0:
+            words_df[liste_caracteristiques_k] = data_by_doc.apply(lambda x: x.shift(k))
     return words_df
 
 
@@ -232,10 +232,10 @@ for k in range(20):
 
     print(k)
     list_doc_name = range(k, len(tab), 20)
-    words_df = pd.DataFrame()
+    words_df_k = pd.DataFrame()
     subset = tab.iloc[list_doc_name]
     subset = subset[['text', 'label']]
-    
+
     for idx, decision in subset.iterrows():
         document_temp = pd.DataFrame.from_dict({
         'mot': decision['text'],
@@ -244,14 +244,14 @@ for k in range(20):
         document_temp['doc_name'] = idx
         document_temp['rank_word'] = range(len(document_temp))
 
-        words_df = pd.concat([words_df, document_temp])
+        words_df_k = pd.concat([words_df_k, document_temp])
 
-    words_df['tagged'] = words_df['tagged'] == 'True'
-    words_df_k = words_df[words_df['doc_name'].isin(list_doc_name)]
+    words_df_k['tagged'] = words_df_k['tagged'] == 'True'
     words_df_k = caracteristique_du_mot(words_df_k,
                           firstname_list,
                           foreign_firstname_list,
                           mister_list)
+
     words_df_k = shift_words_data(words_df_k, -4, 5, caracteristiques_mot)
 
 
